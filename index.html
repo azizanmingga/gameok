@@ -1,0 +1,2200 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Petualangan 3D Garuda Pancasila - Pendidikan Pancasila</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        * {
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+        .font-cinzel {
+            font-family: 'Cinzel', serif;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #030712;
+        }
+        #webgl-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            display: block;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.78);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(245, 158, 11, 0.25);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(245, 158, 11, 0.5);
+            border-radius: 999px;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(245, 158, 11, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(245, 158, 11, 0.85); }
+        }
+        .pulse-gold {
+            animation: pulseGlow 2.5s infinite;
+        }
+    </style>
+</head>
+<body class="text-slate-100 flex flex-col justify-between select-none">
+
+    <!-- 3D WebGL Canvas Layer -->
+    <canvas id="webgl-canvas"></canvas>
+
+    <!-- Top Floating HUD (Never obstructs main view) -->
+    <header id="top-hud" class="relative z-10 w-full px-4 py-3 flex items-center justify-between pointer-events-none transition-all duration-300">
+        <!-- Logo & Player Badge -->
+        <div class="pointer-events-auto flex items-center gap-3 glass-panel px-4 py-2 rounded-2xl shadow-lg border border-amber-500/30">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-yellow-300 flex items-center justify-center text-slate-950 font-black text-xl shadow-md">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <h1 class="text-xs font-extrabold uppercase tracking-widest text-amber-400 font-cinzel">Garuda Pancasila</h1>
+                <div class="flex items-center gap-2 text-xs text-slate-300 font-semibold">
+                    <span id="hud-player-name" class="text-white font-bold">Pelajar Pancasila</span>
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block"></span>
+                    <span id="hud-player-class" class="text-amber-300">Kelas --</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mode Buttons & Stats -->
+        <div class="pointer-events-auto flex items-center gap-2">
+            <!-- Score Counter -->
+            <div class="glass-panel px-4 py-2 rounded-2xl flex items-center gap-2 text-sm font-bold border border-amber-500/30">
+                <i class="fa-solid fa-trophy text-amber-400"></i>
+                <span class="text-slate-400 text-xs hidden sm:inline">Skor:</span>
+                <span id="hud-score" class="text-amber-300 text-base">0</span>
+            </div>
+
+            <!-- Audio Toggle -->
+            <button onclick="toggleAudio()" id="btn-audio" class="glass-panel w-10 h-10 rounded-2xl flex items-center justify-center text-slate-300 hover:text-amber-300 hover:border-amber-400/50 transition" title="Toggle Suara">
+                <i class="fa-solid fa-volume-high" id="audio-icon"></i>
+            </button>
+
+            <!-- Guide / Instructions Button -->
+            <button onclick="openModal('modal-instruction')" class="glass-panel px-3.5 py-2 rounded-2xl flex items-center gap-2 text-xs font-bold text-amber-300 hover:bg-amber-500/20 hover:border-amber-400 transition" title="Petunjuk Permainan">
+                <i class="fa-solid fa-circle-question text-base"></i>
+                <span class="hidden md:inline">Petunjuk</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Bottom Action Ribbon & Navigation (Compact for Mobile / IFP) -->
+    <nav id="bottom-hud" class="relative z-10 w-full px-4 py-3 flex items-center justify-center pointer-events-none">
+        <div class="pointer-events-auto glass-panel px-3 py-2 rounded-3xl flex items-center gap-1.5 sm:gap-3 shadow-2xl border border-white/10 max-w-xl">
+            <button onclick="switchGameMode('explore')" id="nav-btn-explore" class="px-3 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition bg-amber-500 text-slate-950 shadow-md">
+                <i class="fa-solid fa-compass"></i>
+                <span>Eksplorasi 3D</span>
+            </button>
+            <button onclick="switchGameMode('puzzle3d')" id="nav-btn-puzzle3d" class="px-3 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition text-slate-300 hover:text-white hover:bg-white/10">
+                <i class="fa-solid fa-hand-holding-hand text-amber-400"></i>
+                <span>Lepas & Pasang 3D</span>
+            </button>
+            <button onclick="switchGameMode('quiz')" id="nav-btn-quiz" class="px-3 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition text-slate-300 hover:text-white hover:bg-white/10">
+                <i class="fa-solid fa-gamepad"></i>
+                <span>Kuis Cocok</span>
+            </button>
+            <button onclick="showCertificateModal()" id="nav-btn-cert" class="px-3 sm:px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition text-amber-300 hover:text-white hover:bg-amber-500/20">
+                <i class="fa-solid fa-award"></i>
+                <span class="hidden sm:inline">Sertifikat</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- FLOATING 3D INTERACTIVE INFO CARD (Appears during 3D inspection) -->
+    <div id="symbol-card" class="fixed top-20 right-4 max-w-sm w-full z-20 glass-panel rounded-3xl p-5 border border-amber-500/50 shadow-2xl hidden transition-all duration-300 animate-in fade-in slide-in-from-right-4">
+        <div class="flex items-start justify-between">
+            <div class="flex items-center gap-3">
+                <div id="card-symbol-icon" class="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400 flex items-center justify-center text-2xl text-amber-300">
+                    <i class="fa-solid fa-star"></i>
+                </div>
+                <div>
+                    <span id="card-sila-number" class="text-xs uppercase font-extrabold tracking-widest text-amber-400">Sila Ke-1</span>
+                    <h3 id="card-symbol-name" class="text-base font-extrabold text-white leading-tight">Bintang Emas</h3>
+                </div>
+            </div>
+            <button onclick="closeSymbolCard()" class="text-slate-400 hover:text-white p-1 rounded-lg">
+                <i class="fa-solid fa-xmark text-lg"></i>
+            </button>
+        </div>
+
+        <div class="mt-3.5 space-y-2.5 text-xs text-slate-200">
+            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                <span class="font-bold text-amber-300 block mb-0.5">Bunyi Sila:</span>
+                <p id="card-sila-text" class="font-semibold italic text-white"></p>
+            </div>
+            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                <span class="font-bold text-emerald-400 block mb-0.5">Makna Filosofis:</span>
+                <p id="card-symbol-meaning" class="text-slate-300 leading-relaxed"></p>
+            </div>
+            <div class="bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
+                <span class="font-bold text-sky-400 block mb-0.5">Pengamalan Sehari-hari:</span>
+                <p id="card-symbol-value" class="text-slate-300 leading-relaxed"></p>
+            </div>
+        </div>
+
+        <button onclick="inspectNextSymbol()" class="mt-4 w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 hover:brightness-110 active:scale-95 transition shadow-lg">
+            <span>Lihat Lambang Selanjutnya</span>
+            <i class="fa-solid fa-arrow-right"></i>
+        </button>
+    </div>
+
+    <!-- HINT FLOATING BADGE -->
+    <div id="explore-hint" class="fixed bottom-20 left-1/2 -translate-x-1/2 z-10 glass-panel px-4 py-2 rounded-full text-xs text-slate-300 border border-amber-400/30 flex items-center gap-2 pointer-events-none transition-opacity duration-300">
+        <i class="fa-solid fa-hand-pointer text-amber-400 animate-bounce"></i>
+        <span id="hint-text">Sentuh atau klik 5 lambang pada perisai Garuda untuk memeriksa makna!</span>
+    </div>
+
+    <!-- 3D PUZZLE TRAY (Dock untuk lambang yang dilepas) -->
+    <div id="dock-tray-3d" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 glass-panel px-4 py-3 rounded-2xl border border-amber-500/40 hidden flex-col items-center gap-2 shadow-2xl max-w-xl w-[94%] sm:w-auto">
+        <div class="flex items-center justify-between w-full text-xs">
+            <span class="font-extrabold text-amber-400 flex items-center gap-2">
+                <i class="fa-solid fa-arrows-split-up-and-left"></i> Nampan Lambang Garuda
+            </span>
+            <span class="text-slate-300 text-[11px]" id="tray-count-info">5 Terpasang di Perisai</span>
+        </div>
+        <div id="tray-items-container" class="flex items-center justify-center gap-2 sm:gap-3 flex-wrap">
+            <!-- Dynamic Tray items for detached symbols -->
+        </div>
+    </div>
+
+    <!-- ==================== OVERLAYS & MODALS ==================== -->
+
+    <!-- 1. LOGIN / IDENTITY MODAL -->
+    <div id="modal-identity" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4">
+        <div class="glass-panel max-w-md w-full rounded-3xl p-6 sm:p-8 border border-amber-500/40 shadow-[0_0_50px_rgba(245,158,11,0.2)] text-center relative overflow-hidden">
+            <div class="absolute -top-12 -right-12 w-32 h-32 bg-amber-500/20 rounded-full blur-2xl pointer-events-none"></div>
+            <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-600 flex items-center justify-center text-slate-950 text-3xl font-black shadow-xl">
+                <i class="fa-solid fa-feather-pointed"></i>
+            </div>
+            <h2 class="text-xl sm:text-2xl font-black text-white font-cinzel">Petualangan Garuda</h2>
+            <p class="text-xs text-amber-300 mt-1 uppercase tracking-widest font-semibold">Media Pembelajaran Pendidikan Pancasila</p>
+            <p class="text-xs text-slate-300 mt-3 leading-relaxed">
+                Selamat datang! Silakan masukkan nama lengkap dan kelas Anda sebelum memulai petualangan edukatif simbol Garuda Pancasila.
+            </p>
+
+            <form onsubmit="handleStartGame(event)" class="mt-6 space-y-4 text-left">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Nama Lengkap Siswa</label>
+                    <div class="relative">
+                        <span class="absolute left-3.5 top-3 text-slate-400 text-sm"><i class="fa-solid fa-user"></i></span>
+                        <input type="text" id="input-name" required placeholder="Contoh: Raden Kartini" class="w-full bg-slate-900/90 border border-slate-700 focus:border-amber-400 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-300 mb-1.5">Kelas / Jenjang</label>
+                    <div class="relative">
+                        <span class="absolute left-3.5 top-3 text-slate-400 text-sm"><i class="fa-solid fa-school"></i></span>
+                        <input type="text" id="input-class" required placeholder="Contoh: IV-A / SD Merdeka" class="w-full bg-slate-900/90 border border-slate-700 focus:border-amber-400 rounded-xl py-2.5 pl-10 pr-4 text-sm text-white placeholder-slate-500 focus:outline-none transition">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-extrabold text-sm uppercase tracking-wider flex items-center justify-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition mt-2">
+                    <i class="fa-solid fa-play"></i>
+                    <span>Mulai Petualangan</span>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 2. GAMEPLAY INSTRUCTIONS MODAL -->
+    <div id="modal-instruction" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel max-w-lg w-full rounded-3xl p-6 sm:p-7 border border-white/20 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-book-open"></i>
+                    </div>
+                    <h3 class="text-base font-extrabold text-white font-cinzel">Petunjuk Permainan</h3>
+                </div>
+                <button onclick="closeModal('modal-instruction')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <div class="mt-4 space-y-3.5 text-xs text-slate-300 leading-relaxed">
+                <div class="bg-slate-900/60 p-3.5 rounded-2xl border border-white/5">
+                    <h4 class="font-bold text-amber-400 flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-1"></i> Mode Eksplorasi 3D
+                    </h4>
+                    <p>Putar, perbesar, dan ketuk lambang pada perisai burung Garuda secara langsung. Pahami bunyi sila, arti lambang, dan nilai pengamalan hidupnya.</p>
+                </div>
+
+                <div class="bg-slate-900/60 p-3.5 rounded-2xl border border-white/5">
+                    <h4 class="font-bold text-amber-400 flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-2"></i> Kuis Mencocokkan Sila
+                    </h4>
+                    <p>Pilih lambang atau bunyi sila yang tepat sesuai pertanyaan. Setiap jawaban benar memberikan poin +20 untuk nilai akhir Anda.</p>
+                </div>
+
+                <div class="bg-slate-900/60 p-3.5 rounded-2xl border border-white/5">
+                    <h4 class="font-bold text-amber-400 flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-3"></i> Susun Perisai Garuda
+                    </h4>
+                    <p>Tempatkan 5 lambang pada posisi perisai yang tepat (Banteng di kiri-atas, Beringin di kanan-atas, Bintang di tengah, dsb). Nilai sempurna didapat dari ketelitian Anda!</p>
+                </div>
+
+                <div class="bg-slate-900/60 p-3.5 rounded-2xl border border-white/5">
+                    <h4 class="font-bold text-emerald-400 flex items-center gap-2 mb-1">
+                        <i class="fa-solid fa-award"></i> Unduh Sertifikat
+                    </h4>
+                    <p>Setelah menyelesaikan kuis atau tantangan, Anda dapat mengunduh sertifikat resmi berformat gambar resolusi tinggi sebagai bukti prestasi belajar.</p>
+                </div>
+            </div>
+
+            <button onclick="closeModal('modal-instruction')" class="mt-5 w-full py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs uppercase tracking-wider transition">
+                Saya Mengerti
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. KUIS MENCOCOKKAN SILA MODAL / OVERLAY -->
+    <div id="panel-quiz" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel max-w-xl w-full rounded-3xl p-6 sm:p-8 border border-amber-500/40 shadow-2xl relative">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-black">
+                        <i class="fa-solid fa-question"></i>
+                    </span>
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-amber-400 tracking-wider">Tantangan Kuis</span>
+                        <h3 class="text-sm font-extrabold text-white">Cocokkan Simbol & Sila Pancasila</h3>
+                    </div>
+                </div>
+                <div class="text-xs font-bold text-slate-400">
+                    Soal <span id="quiz-question-current" class="text-amber-300">1</span>/<span id="quiz-question-total">5</span>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <p id="quiz-prompt-text" class="text-sm sm:text-base font-semibold text-white leading-relaxed bg-slate-900/70 p-4 rounded-2xl border border-white/5"></p>
+            </div>
+
+            <!-- Quiz Options List -->
+            <div id="quiz-options-container" class="mt-4 space-y-2.5">
+                <!-- Dynamically populated options -->
+            </div>
+
+            <!-- Quiz Feedback Notification -->
+            <div id="quiz-feedback-box" class="mt-4 p-3 rounded-xl hidden text-xs font-semibold flex items-center gap-2"></div>
+
+            <div class="mt-5 flex items-center justify-between pt-2">
+                <button onclick="switchGameMode('explore')" class="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition">
+                    Kembali ke 3D
+                </button>
+                <button id="quiz-next-btn" onclick="nextQuizQuestion()" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                    <span>Pertanyaan Berikut</span>
+                    <i class="fa-solid fa-chevron-right text-xs"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. SUSUN PERISAI PUZZLE OVERLAY -->
+    <div id="panel-puzzle" class="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/75 backdrop-blur-md p-4 hidden">
+        <div class="glass-panel max-w-2xl w-full rounded-3xl p-5 sm:p-7 border border-amber-500/40 shadow-2xl relative max-h-[92vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <div class="flex items-center gap-2.5">
+                    <span class="w-8 h-8 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm font-black">
+                        <i class="fa-solid fa-puzzle-piece"></i>
+                    </span>
+                    <div>
+                        <span class="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">Mini Game Interaktif</span>
+                        <h3 class="text-sm sm:text-base font-extrabold text-white">Susun 5 Lambang Pada Perisai Garuda</h3>
+                    </div>
+                </div>
+                <button onclick="switchGameMode('explore')" class="text-slate-400 hover:text-white p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <p class="text-xs text-slate-300 mt-3">
+                Ketuk lambang di bagian bawah, lalu ketuk slot perisai yang sesuai. Terapkan pengetahuan posisi lambang negara sesuai aturan resmi!
+            </p>
+
+            <div class="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+                <!-- Perisai Graphical Interactive Slots -->
+                <div class="flex justify-center">
+                    <div class="w-64 h-72 sm:w-72 sm:h-80 relative rounded-[40px] border-4 border-amber-500/80 bg-slate-950 shadow-[0_0_30px_rgba(245,158,11,0.25)] flex flex-col items-center justify-center p-2 overflow-hidden">
+                        <!-- Horizontal & Vertical Black Lines -->
+                        <div class="absolute inset-x-0 h-3 bg-black border-y border-amber-500/30 top-1/2 -translate-y-1/2 z-10"></div>
+                        <div class="absolute inset-y-0 w-3 bg-black border-x border-amber-500/30 left-1/2 -translate-x-1/2 z-10"></div>
+
+                        <!-- Top Left (Banteng - Sila 4) - Latar Merah -->
+                        <div onclick="slotClicked(4)" id="shield-slot-4" class="shield-slot absolute top-3 left-3 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-red-950/60 border-2 border-dashed border-red-500/60 flex flex-col items-center justify-center p-1.5 cursor-pointer hover:bg-red-900/40 transition">
+                            <span class="text-[9px] text-red-300 font-bold">Kiri Atas (Merah)</span>
+                            <div class="slot-content text-xs font-semibold text-center text-slate-400 mt-1">Slot Kosong</div>
+                        </div>
+
+                        <!-- Top Right (Beringin - Sila 3) - Latar Putih -->
+                        <div onclick="slotClicked(3)" id="shield-slot-3" class="shield-slot absolute top-3 right-3 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white/10 border-2 border-dashed border-emerald-500/60 flex flex-col items-center justify-center p-1.5 cursor-pointer hover:bg-emerald-950/40 transition">
+                            <span class="text-[9px] text-emerald-300 font-bold">Kanan Atas (Putih)</span>
+                            <div class="slot-content text-xs font-semibold text-center text-slate-400 mt-1">Slot Kosong</div>
+                        </div>
+
+                        <!-- Bottom Left (Padi & Kapas - Sila 5) - Latar Putih -->
+                        <div onclick="slotClicked(5)" id="shield-slot-5" class="shield-slot absolute bottom-3 left-3 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-white/10 border-2 border-dashed border-yellow-500/60 flex flex-col items-center justify-center p-1.5 cursor-pointer hover:bg-yellow-950/40 transition">
+                            <span class="text-[9px] text-yellow-300 font-bold">Kiri Bawah (Putih)</span>
+                            <div class="slot-content text-xs font-semibold text-center text-slate-400 mt-1">Slot Kosong</div>
+                        </div>
+
+                        <!-- Bottom Right (Rantai - Sila 2) - Latar Merah -->
+                        <div onclick="slotClicked(2)" id="shield-slot-2" class="shield-slot absolute bottom-3 right-3 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl bg-red-950/60 border-2 border-dashed border-red-500/60 flex flex-col items-center justify-center p-1.5 cursor-pointer hover:bg-red-900/40 transition">
+                            <span class="text-[9px] text-red-300 font-bold">Kanan Bawah (Merah)</span>
+                            <div class="slot-content text-xs font-semibold text-center text-slate-400 mt-1">Slot Kosong</div>
+                        </div>
+
+                        <!-- Center Slot (Bintang - Sila 1) - Latar Hitam -->
+                        <div onclick="slotClicked(1)" id="shield-slot-1" class="shield-slot absolute w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-slate-900 border-2 border-dashed border-amber-400 z-20 flex flex-col items-center justify-center p-1 cursor-pointer hover:scale-105 transition shadow-xl">
+                            <span class="text-[9px] text-amber-300 font-bold">Tengah (Hitam)</span>
+                            <div class="slot-content text-xs font-semibold text-center text-slate-400 mt-1">Slot Kosong</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Available Symbols Palette -->
+                <div>
+                    <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">Pilihan Simbol:</h4>
+                    <div id="puzzle-palette-container" class="space-y-2">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div id="puzzle-status-msg" class="mt-3 text-xs font-semibold text-center text-slate-300"></div>
+                </div>
+            </div>
+
+            <div class="mt-5 flex items-center justify-between pt-2 border-t border-white/10">
+                <button onclick="resetPuzzleSlots()" class="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white transition">
+                    <i class="fa-solid fa-arrow-rotate-left mr-1"></i> Reset Posisi
+                </button>
+                <button id="puzzle-finish-btn" onclick="checkPuzzleCompletion()" class="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg transition">
+                    <i class="fa-solid fa-check-double"></i>
+                    <span>Verifikasi Susunan</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 5. OFFICIAL CERTIFICATE MODAL -->
+    <div id="modal-certificate" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 hidden overflow-y-auto">
+        <div class="glass-panel max-w-3xl w-full rounded-3xl p-6 sm:p-8 border border-amber-500/50 shadow-2xl relative my-auto">
+            <div class="flex items-center justify-between border-b border-white/10 pb-3">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-amber-500 text-slate-950 flex items-center justify-center text-xl font-black">
+                        <i class="fa-solid fa-award"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-base sm:text-lg font-black text-white font-cinzel">Sertifikat Hasil Belajar</h3>
+                        <p class="text-xs text-amber-300 font-semibold">Pendidikan Pancasila - Simbol Lambang Garuda</p>
+                    </div>
+                </div>
+                <button onclick="closeModal('modal-certificate')" class="text-slate-400 hover:text-white p-2">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Canvas Preview Container -->
+            <div class="mt-4 flex flex-col items-center">
+                <canvas id="cert-canvas" width="1200" height="840" class="w-full max-h-[58vh] object-contain rounded-xl shadow-2xl border-2 border-amber-500/40 bg-slate-900"></canvas>
+            </div>
+
+            <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
+                <div class="text-xs text-slate-300">
+                    Nilai Total: <span id="cert-score-display" class="font-extrabold text-amber-300 text-base">0 / 100</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button onclick="closeModal('modal-certificate')" class="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-300 hover:text-white bg-slate-800 transition">
+                        Tutup
+                    </button>
+                    <button onclick="downloadCertificateImage()" class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg hover:brightness-110 active:scale-95 transition">
+                        <i class="fa-solid fa-download"></i>
+                        <span>Unduh Sertifikat (PNG)</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NOTIFICATION TOAST -->
+    <div id="toast-msg" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 glass-panel px-5 py-2.5 rounded-2xl text-xs font-bold text-white shadow-2xl border border-amber-400/40 pointer-events-none transition-all duration-300 opacity-0 -translate-y-4"></div>
+
+    <script>
+        /* ================= GAME STATE MANAGEMENT ================= */
+        const gameState = {
+            playerName: 'Pelajar Pancasila',
+            playerClass: 'Kelas IV',
+            score: 0,
+            audioEnabled: true,
+            currentMode: 'explore', // 'explore', 'quiz', 'puzzle', 'puzzle3d'
+            exploredSymbols: new Set(),
+            quizIndex: 0,
+            quizScore: 0,
+            puzzleScore: 0,
+            puzzleSelectedSymbol: null,
+            puzzleSlots: { 1: null, 2: null, 3: null, 4: null, 5: null },
+            // Status posisi lambang di 3D (attached / detached)
+            emblem3DStatus: {
+                1: { attached: true, mesh: null, originPos: new THREE.Vector3(0, 0.15, 0.32), detachPos: new THREE.Vector3(0, -1.8, 2.2) },
+                2: { attached: true, mesh: null, originPos: new THREE.Vector3(0.76, -0.68, 0.24), detachPos: new THREE.Vector3(2.5, -1.5, 2.0) },
+                3: { attached: true, mesh: null, originPos: new THREE.Vector3(0.76, 1.0, 0.24), detachPos: new THREE.Vector3(2.6, 1.5, 2.0) },
+                4: { attached: true, mesh: null, originPos: new THREE.Vector3(-0.76, 1.0, 0.24), detachPos: new THREE.Vector3(-2.6, 1.5, 2.0) },
+                5: { attached: true, mesh: null, originPos: new THREE.Vector3(-0.76, -0.68, 0.24), detachPos: new THREE.Vector3(-2.5, -1.5, 2.0) }
+            }
+        };
+
+        // 5 Symbols of Pancasila Details (Accurate to National Standard)
+        const PANCASILA_DATA = [
+            {
+                id: 1,
+                name: "Bintang Emas",
+                silaNumber: "Sila Ke-1",
+                silaText: "Ketuhanan Yang Maha Esa",
+                symbolShape: "Bintang bersudut 5 bercahaya di perisai hitam tengah",
+                meaning: "Melambangkan cahaya kerohanian yang dipancarkan oleh Tuhan Yang Maha Esa kepada setiap insan manusia.",
+                value: "Percaya dan taqwa kepada Tuhan, saling menghormati dan toleransi antarumat beragama, serta hidup rukun berdampingan.",
+                color: "#FBBF24",
+                slotTarget: 1
+            },
+            {
+                id: 2,
+                name: "Rantai Emas",
+                silaNumber: "Sila Ke-2",
+                silaText: "Kemanusiaan yang Adil dan Beradab",
+                symbolShape: "Gelang persegi (pria) dan lingkaran (wanita) berlatar merah kanan-bawah",
+                meaning: "Mata rantai segi empat melambangkan laki-laki, sedangkan lingkaran melambangkan perempuan. Menggambarkan persatuan erat antar sesama manusia yang saling membutuhkan.",
+                value: "Menolong sesama teman, gemar kegiatan kemanusiaan, menjunjung kesetaraan, dan tidak membeda-bedakan suku.",
+                color: "#EF4444",
+                slotTarget: 2
+            },
+            {
+                id: 3,
+                name: "Pohon Beringin",
+                silaNumber: "Sila Ke-3",
+                silaText: "Persatuan Indonesia",
+                symbolShape: "Pohon rindang berakar gantung kokoh berlatar putih kanan-atas",
+                meaning: "Pohon beringin besar yang rindang melambangkan Negara Republik Indonesia sebagai tempat berteduh dan naungan bagi seluruh rakyat Indonesia yang majemuk.",
+                value: "Cinta tanah air, menjaga kerukunan antar suku, bangga memakai produk Indonesia, dan mendahulukan kepentingan bersama.",
+                color: "#10B981",
+                slotTarget: 3
+            },
+            {
+                id: 4,
+                name: "Kepala Banteng",
+                silaNumber: "Sila Ke-4",
+                silaText: "Kerakyatan yang Dipimpin oleh Hikmat Kebijaksanaan dalam Permusyawaratan/Perwakilan",
+                symbolShape: "Kepala banteng hitam gagah berlatar merah kiri-atas",
+                meaning: "Banteng merupakan hewan sosial yang gemar berkumpul, mencerminkan budaya musyawarah mufakat di mana masyarakat berdiskusi untuk melahirkan keputusan terbaik.",
+                value: "Menghormati pendapat teman dalam diskusi kelas, tidak memaksakan kehendak, dan menghargai keputusan bersama.",
+                color: "#DC2626",
+                slotTarget: 4
+            },
+            {
+                id: 5,
+                name: "Padi dan Kapas",
+                silaNumber: "Sila Ke-5",
+                silaText: "Keadilan Sosial bagi Seluruh Rakyat Indonesia",
+                symbolShape: "Bulir padi kuning dan kuntum kapas berlatar putih kiri-bawah",
+                meaning: "Padi melambangkan pangan dan kapas melambangkan sandang. Simbol pemenuhan kebutuhan dasar seluruh rakyat secara merata tanpa kesenjangan.",
+                value: "Bersikap adil kepada semua orang, rajin menabung, gemar bekerja keras, serta menghargai karya orang lain.",
+                color: "#F59E0B",
+                slotTarget: 5
+            }
+        ];
+
+        // Matching Quiz Questions
+        const QUIZ_QUESTIONS = [
+            {
+                prompt: "Lambang apakah yang posisinya berada tepat di jantung tengah perisai Garuda berlatar hitam pekat?",
+                options: ["Pohon Beringin", "Bintang Emas", "Kepala Banteng", "Rantai Emas"],
+                correctAnswer: "Bintang Emas",
+                correctId: 1,
+                explanation: "Bintang emas bersudut 5 terletak di pusat perisai, melambangkan Sila ke-1: Ketuhanan Yang Maha Esa."
+            },
+            {
+                prompt: "Lambang rantai emas yang tersusun dari gelang segi empat dan bulat terletak di kuadran kanan bawah. Lambang ini untuk sila ke-?",
+                options: ["Sila Ke-1", "Sila Ke-2", "Sila Ke-4", "Sila Ke-5"],
+                correctAnswer: "Sila Ke-2",
+                correctId: 2,
+                explanation: "Rantai Emas melambangkan Sila ke-2: Kemanusiaan yang Adil dan Beradab."
+            },
+            {
+                prompt: "Pohon rindang berakar gantung kokoh di kuadran kanan atas berlatar putih mencerminkan naungan bagi persatuan bangsa. Lambang apakah ini?",
+                options: ["Kepala Banteng", "Pohon Beringin", "Padi dan Kapas", "Rantai Emas"],
+                correctAnswer: "Pohon Beringin",
+                correctId: 3,
+                explanation: "Pohon Beringin adalah simbol Sila ke-3: Persatuan Indonesia."
+            },
+            {
+                prompt: "Lambang hewan bertanduk kuat di kuadran kiri atas berlatar merah yang mencerminkan musyawarah mufakat adalah...",
+                options: ["Kepala Banteng", "Burung Garuda", "Bintang Emas", "Pohon Beringin"],
+                correctAnswer: "Kepala Banteng",
+                correctId: 4,
+                explanation: "Kepala Banteng melambangkan Sila ke-4: Kerakyatan yang Dipimpin oleh Hikmat Kebijaksanaan."
+            },
+            {
+                prompt: "Bulir padi emas dan kuntum kapas di kuadran kiri bawah melambangkan kemakmuran pangan dan sandang. Simbol ini mewakili sila ke-?",
+                options: ["Sila Ke-2", "Sila Ke-3", "Sila Ke-4", "Sila Ke-5"],
+                correctAnswer: "Sila Ke-5",
+                correctId: 5,
+                explanation: "Padi dan Kapas melambangkan Sila ke-5: Keadilan Sosial bagi Seluruh Rakyat Indonesia."
+            }
+        ];
+
+        /* ================= WEB AUDIO SYNTHESIZER ================= */
+        let audioCtx = null;
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                if (AudioContext) audioCtx = new AudioContext();
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playSound(type) {
+            if (!gameState.audioEnabled) return;
+            try {
+                initAudio();
+                if (!audioCtx) return;
+                const now = audioCtx.currentTime;
+
+                if (type === 'click') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(587, now);
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.1);
+                } else if (type === 'correct') {
+                    const notes = [523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                        gain.gain.setValueAtTime(0.15, now + idx * 0.08);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.3);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(now + idx * 0.08);
+                        osc.stop(now + idx * 0.08 + 0.35);
+                    });
+                } else if (type === 'wrong') {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.linearRampToValueAtTime(140, now + 0.3);
+                    gain.gain.setValueAtTime(0.18, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now);
+                    osc.stop(now + 0.3);
+                } else if (type === 'fanfare') {
+                    const notes = [440, 554.37, 659.25, 880];
+                    notes.forEach((freq, idx) => {
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+                        gain.gain.setValueAtTime(0.18, now + idx * 0.12);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.5);
+                        osc.connect(gain);
+                        gain.connect(audioCtx.destination);
+                        osc.start(now + idx * 0.12);
+                        osc.stop(now + idx * 0.12 + 0.55);
+                    });
+                }
+            } catch (e) {
+                console.warn('Audio play error', e);
+            }
+        }
+
+        function toggleAudio() {
+            gameState.audioEnabled = !gameState.audioEnabled;
+            const icon = document.getElementById('audio-icon');
+            if (gameState.audioEnabled) {
+                icon.className = 'fa-solid fa-volume-high text-amber-300';
+                showToast("Suara Diaktifkan");
+                playSound('click');
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-slate-500';
+                showToast("Suara Dinonaktifkan");
+            }
+        }
+
+        /* ================= THREE.JS 3D SCENE SETUP ================= */
+        let scene, camera, renderer;
+        let garudaGroup, shieldGroup;
+        let interactiveMeshes = [];
+        let raycaster, mouse;
+        let isUserInteracting = false;
+        let previousMousePosition = { x: 0, y: 0 };
+        let targetRotation = { x: 0, y: 0 };
+        let activeSymbolId = 1;
+
+        function initThreeEngine() {
+            const container = document.getElementById('webgl-canvas');
+            
+            // 1. Scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x030712, 0.045);
+
+            // 2. Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 0.3, 9.4);
+
+            // 3. Renderer
+            renderer = new THREE.WebGLRenderer({ canvas: container, antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            renderer.toneMappingExposure = 1.25;
+
+            // 4. Lights
+            const ambientLight = new THREE.AmbientLight(0xfff5e6, 1.1);
+            scene.add(ambientLight);
+
+            const keyLight = new THREE.DirectionalLight(0xfffdf5, 2.2);
+            keyLight.position.set(5, 7, 8);
+            scene.add(keyLight);
+
+            const fillLight = new THREE.DirectionalLight(0x38bdf8, 1.0);
+            fillLight.position.set(-6, 2, -4);
+            scene.add(fillLight);
+
+            const rimGoldLight = new THREE.PointLight(0xf59e0b, 3.2, 20);
+            rimGoldLight.position.set(0, 3.5, 3.5);
+            scene.add(rimGoldLight);
+
+            // 5. Build Procedural 3D Garuda & Shield
+            buildGarudaModel();
+
+            // 6. Raycasting Setup
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Event Listeners for Touch / Mouse
+            window.addEventListener('resize', onWindowResize, false);
+            setupCanvasInteraction(renderer.domElement);
+        }
+
+        /* Helper to create crisp heraldic textures procedurally on HTML Canvas */
+        function createHeraldicCanvasTexture(type) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1024;
+            const ctx = canvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+
+            if (type === 'banteng') {
+                // Sila 4: Kepala Banteng pada Latar Merah Presisi Gambar Resmi RI
+                ctx.fillStyle = '#dc2626'; // Merah heraldik resmi
+                ctx.fillRect(0, 0, 1024, 1024);
+
+                ctx.save();
+                ctx.translate(512, 530);
+
+                ctx.strokeStyle = '#020617';
+                ctx.lineWidth = 14;
+                ctx.lineJoin = 'round';
+                ctx.lineCap = 'round';
+
+                // Siluet Tanduk Kiri Banteng (Melengkung Tajam ke Dalam Sesuai SVG Resmi)
+                ctx.fillStyle = '#09090b';
+                ctx.beginPath();
+                ctx.moveTo(-75, -50);
+                ctx.bezierCurveTo(-260, -140, -330, -390, -225, -435);
+                ctx.bezierCurveTo(-245, -310, -185, -125, -50, -15);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Siluet Tanduk Kanan Banteng (Melengkung Tajam ke Dalam Sesuai SVG Resmi)
+                ctx.beginPath();
+                ctx.moveTo(75, -50);
+                ctx.bezierCurveTo(260, -140, 330, -390, 225, -435);
+                ctx.bezierCurveTo(245, -310, 185, -125, 50, -15);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Kepala / Muka Utama Banteng Hitam
+                ctx.fillStyle = '#09090b';
+                ctx.beginPath();
+                ctx.moveTo(-115, -70);
+                ctx.lineTo(115, -70);
+                ctx.bezierCurveTo(165, 40, 145, 220, 100, 310);
+                ctx.bezierCurveTo(45, 365, -45, 365, -100, 310);
+                ctx.bezierCurveTo(-145, 220, -165, 40, -115, -70);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Telinga Kiri
+                ctx.beginPath();
+                ctx.ellipse(-150, -20, 52, 24, -0.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Telinga Kanan
+                ctx.beginPath();
+                ctx.ellipse(150, -20, 52, 24, 0.4, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Sorotan Putih Dahi & Hidung (Sesuai Lambang Resmi)
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.moveTo(-24, -50);
+                ctx.lineTo(24, -50);
+                ctx.bezierCurveTo(12, 50, 30, 120, 46, 230);
+                ctx.lineTo(-46, 230);
+                ctx.bezierCurveTo(-30, 120, -12, 50, -24, -50);
+                ctx.closePath();
+                ctx.fill();
+
+                // Mata Kiri Putih Tajam
+                ctx.beginPath();
+                ctx.moveTo(-82, 20);
+                ctx.quadraticCurveTo(-50, -5, -25, 28);
+                ctx.quadraticCurveTo(-55, 45, -82, 20);
+                ctx.fill();
+
+                // Mata Kanan Putih Tajam
+                ctx.beginPath();
+                ctx.moveTo(82, 20);
+                ctx.quadraticCurveTo(50, -5, 25, 28);
+                ctx.quadraticCurveTo(55, 45, 82, 20);
+                ctx.fill();
+
+                // Sorotan Putih Mulut & Hidung
+                ctx.beginPath();
+                ctx.ellipse(0, 275, 52, 30, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Lubang Hidung Hitam
+                ctx.fillStyle = '#09090b';
+                ctx.beginPath();
+                ctx.arc(-22, 275, 12, 0, Math.PI * 2);
+                ctx.arc(22, 275, 12, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+
+            } else if (type === 'beringin') {
+                // Sila 3: Pohon Beringin pada latar Putih Bersih
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 1024, 1024);
+
+                ctx.save();
+                ctx.translate(512, 530);
+
+                // Batang Pohon Abu-Abu Cokelat Berserat Alami
+                ctx.fillStyle = '#64748b';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 12;
+                ctx.beginPath();
+                ctx.moveTo(-95, 350);
+                ctx.bezierCurveTo(-65, 200, -75, 40, -135, -30);
+                ctx.lineTo(-40, -20);
+                ctx.bezierCurveTo(-20, 60, 20, 60, 40, -20);
+                ctx.lineTo(135, -30);
+                ctx.bezierCurveTo(75, 40, 65, 200, 95, 350);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+
+                // Rongga Batang Putih-Abu Alami
+                ctx.fillStyle = '#cbd5e1';
+                ctx.beginPath();
+                ctx.ellipse(-12, 160, 25, 45, 0, 0, Math.PI * 2);
+                ctx.ellipse(25, 240, 18, 35, 0, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Daun Beringin Hijau Gelap Bergelombang
+                ctx.fillStyle = '#166534';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 12;
+                ctx.beginPath();
+                ctx.arc(0, -180, 245, 0, Math.PI * 2);
+                ctx.arc(-165, -130, 175, 0, Math.PI * 2);
+                ctx.arc(165, -130, 175, 0, Math.PI * 2);
+                ctx.arc(-245, -40, 125, 0, Math.PI * 2);
+                ctx.arc(245, -40, 125, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Daun Hijau Sedang
+                ctx.fillStyle = '#15803d';
+                ctx.beginPath();
+                ctx.arc(0, -200, 200, 0, Math.PI * 2);
+                ctx.arc(-130, -140, 130, 0, Math.PI * 2);
+                ctx.arc(130, -140, 130, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Aksen Daun Hijau Cerah
+                ctx.fillStyle = '#22c55e';
+                for (let ox = -200; ox <= 200; ox += 55) {
+                    for (let oy = -260; oy <= -40; oy += 55) {
+                        if (Math.hypot(ox, oy + 120) < 210) {
+                            ctx.beginPath();
+                            ctx.arc(ox + (Math.sin(oy) * 15), oy, 32, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                }
+
+                // Sulur Akar Gantung Menjuntai
+                ctx.strokeStyle = '#14532d';
+                ctx.lineWidth = 9;
+                [-270, -220, -170, -120, -70, 70, 120, 170, 220, 270].forEach((sx, idx) => {
+                    ctx.beginPath();
+                    ctx.moveTo(sx, -40);
+                    ctx.quadraticCurveTo(sx + (idx % 2 === 0 ? 15 : -15), 110, sx, 225);
+                    ctx.stroke();
+                });
+
+                ctx.restore();
+
+            } else if (type === 'padi_kapas') {
+                // Sila 5: Padi & Kapas pada Latar Putih (Kiri Bawah)
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 1024, 1024);
+
+                ctx.save();
+                ctx.translate(512, 512);
+
+                // Tangkai Padi Lengkung Emas (Kiri)
+                ctx.strokeStyle = '#ca8a04';
+                ctx.lineWidth = 16;
+                ctx.beginPath();
+                ctx.arc(100, 120, 420, Math.PI * 0.64, Math.PI * 1.15, false);
+                ctx.stroke();
+
+                // 17 Butir Padi Emas Berpasangan
+                ctx.fillStyle = '#facc15';
+                ctx.strokeStyle = '#854d0e';
+                ctx.lineWidth = 7;
+                for (let i = 0; i < 17; i++) {
+                    const angle = Math.PI * 0.67 + (i * 0.038);
+                    const r = 420;
+                    const px = 100 + Math.cos(angle) * r;
+                    const py = 120 + Math.sin(angle) * r;
+
+                    ctx.save();
+                    ctx.translate(px, py);
+                    ctx.rotate(angle + Math.PI / 2);
+                    ctx.beginPath();
+                    ctx.ellipse(0, 0, 22, 44, (i % 2 === 0 ? 0.45 : -0.45), 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                // Tangkai Kapas (Kanan)
+                ctx.strokeStyle = '#15803d';
+                ctx.lineWidth = 14;
+                ctx.beginPath();
+                ctx.arc(-40, 120, 400, Math.PI * 0.73, Math.PI * 1.18, false);
+                ctx.stroke();
+
+                // 5 Kuntum Bunga Kapas Putih & Kelopak Hijau
+                for (let k = 0; k < 5; k++) {
+                    const angleK = Math.PI * 0.77 + (k * 0.088);
+                    const kx = -40 + Math.cos(angleK) * 400;
+                    const ky = 120 + Math.sin(angleK) * 400;
+
+                    // Kelopak Daun Hijau
+                    ctx.fillStyle = '#16a34a';
+                    ctx.beginPath();
+                    ctx.arc(kx, ky + 22, 30, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Kuntum Kapas Putih
+                    ctx.fillStyle = '#ffffff';
+                    ctx.strokeStyle = '#64748b';
+                    ctx.lineWidth = 5;
+                    ctx.beginPath();
+                    ctx.arc(kx - 18, ky, 24, 0, Math.PI * 2);
+                    ctx.arc(kx + 18, ky, 24, 0, Math.PI * 2);
+                    ctx.arc(kx, ky - 18, 26, 0, Math.PI * 2);
+                    ctx.arc(kx, ky + 6, 24, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+
+            } else if (type === 'rantai') {
+                // Sila 2: Rantai Emas pada Latar Merah (Kanan Bawah)
+                ctx.fillStyle = '#dc2626';
+                ctx.fillRect(0, 0, 1024, 1024);
+
+                ctx.save();
+                ctx.translate(512, 512);
+                ctx.rotate(-Math.PI * 0.16);
+
+                const rx = 295;
+                const ry = 180;
+                const totalLinks = 17;
+
+                ctx.lineWidth = 18;
+                ctx.strokeStyle = '#facc15';
+                ctx.fillStyle = '#eab308';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 12;
+
+                for (let i = 0; i < totalLinks; i++) {
+                    const th = (i / totalLinks) * Math.PI * 2;
+                    const lx = Math.cos(th) * rx;
+                    const ly = Math.sin(th) * ry;
+
+                    ctx.save();
+                    ctx.translate(lx, ly);
+                    ctx.rotate(th + Math.PI / 2);
+
+                    if (i % 2 === 0) {
+                        // Segi Empat (Pria)
+                        ctx.strokeRect(-34, -34, 68, 68);
+                        ctx.fillRect(-26, -26, 52, 52);
+                    } else {
+                        // Bulat (Wanita)
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 34, 0, Math.PI * 2);
+                        ctx.stroke();
+                        ctx.beginPath();
+                        ctx.arc(0, 0, 22, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                    ctx.restore();
+                }
+
+                ctx.restore();
+
+            } else if (type === 'pita') {
+                // Pita Putih Bersih Lengkung "BHINNEKA TUNGGAL IKA"
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(0, 0, 1024, 256);
+
+                ctx.strokeStyle = '#020617';
+                ctx.lineWidth = 12;
+                ctx.strokeRect(12, 12, 1000, 232);
+
+                ctx.fillStyle = '#020617';
+                ctx.font = '900 86px "Cinzel", "Times New Roman", serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('BHINNEKA TUNGGAL IKA', 512, 128);
+            }
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.anisotropy = 16;
+            return texture;
+        }
+
+        /* Procedural 3D Garuda & Emblems Generation */
+        function buildGarudaModel() {
+            garudaGroup = new THREE.Group();
+            scene.add(garudaGroup);
+
+            // Shaders / Materials Emas Realistis
+            const goldMetallicMat = new THREE.MeshStandardMaterial({
+                color: 0xf5c542,
+                metalness: 0.88,
+                roughness: 0.22
+            });
+
+            const deepGoldMat = new THREE.MeshStandardMaterial({
+                color: 0xc88e14,
+                metalness: 0.9,
+                roughness: 0.28
+            });
+
+            const darkAccentGold = new THREE.MeshStandardMaterial({
+                color: 0x966308,
+                metalness: 0.8,
+                roughness: 0.35
+            });
+
+            // 1. Garuda Head & Crown
+            const headGroup = new THREE.Group();
+            headGroup.position.set(0, 2.9, 0.45);
+
+            // Batok Kepala Garuda
+            const headGeo = new THREE.SphereGeometry(0.55, 32, 32);
+            const headMesh = new THREE.Mesh(headGeo, goldMetallicMat);
+            headMesh.scale.set(1.05, 1.0, 0.95);
+            headMesh.rotation.y = 0.32;
+            headGroup.add(headMesh);
+
+            // Jambul Atas Garuda (7 Gerigi Mahkota Menghadap Belakang)
+            for (let c = 0; c < 7; c++) {
+                const crestGeo = new THREE.ConeGeometry(0.09, 0.7 - (c * 0.07), 5);
+                const crest = new THREE.Mesh(crestGeo, goldMetallicMat);
+                crest.position.set(-0.18 - (c * 0.07), 0.45 + (c * 0.04), -0.05);
+                crest.rotation.z = 0.55 + (c * 0.16);
+                crest.rotation.y = -0.22;
+                headGroup.add(crest);
+            }
+
+            // Paruh Melengkung Tajam Emas (Menengok ke Kanan)
+            const beakShape = new THREE.Shape();
+            beakShape.moveTo(0, 0.24);
+            beakShape.quadraticCurveTo(0.75, 0.15, 1.05, -0.42);
+            beakShape.quadraticCurveTo(0.7, -0.32, 0.2, -0.16);
+            beakShape.lineTo(0, -0.16);
+            beakShape.closePath();
+
+            const beakExtrude = new THREE.ExtrudeGeometry(beakShape, { depth: 0.24, bevelEnabled: true, bevelThickness: 0.06, bevelSize: 0.04 });
+            const beakMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.18, metalness: 0.85 });
+            const beakMesh = new THREE.Mesh(beakExtrude, beakMat);
+            beakMesh.position.set(0.35, -0.05, -0.12);
+            beakMesh.rotation.y = 0.12;
+            headGroup.add(beakMesh);
+
+            // Lidah Merah di dalam Paruh
+            const tongueGeo = new THREE.BoxGeometry(0.38, 0.06, 0.08);
+            const tongueMat = new THREE.MeshStandardMaterial({ color: 0xef4444, roughness: 0.4 });
+            const tongue = new THREE.Mesh(tongueGeo, tongueMat);
+            tongue.position.set(0.65, -0.14, 0);
+            headGroup.add(tongue);
+
+            // Mata Garuda Tajam
+            const eyeSocket = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.03, 12, 24), darkAccentGold);
+            eyeSocket.position.set(0.33, 0.13, 0.36);
+            eyeSocket.rotation.y = 0.3;
+            headGroup.add(eyeSocket);
+
+            const eyeBase = new THREE.Mesh(new THREE.SphereGeometry(0.11, 16, 16), new THREE.MeshStandardMaterial({ color: 0xffffff }));
+            eyeBase.position.set(0.33, 0.13, 0.36);
+            eyeBase.scale.set(1, 0.7, 0.5);
+            const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 12), new THREE.MeshBasicMaterial({ color: 0x09090b }));
+            pupil.position.set(0.36, 0.13, 0.4);
+            headGroup.add(eyeBase);
+            headGroup.add(pupil);
+
+            // 45 Helai Bulu Leher (Simbol 1945) Berlapis Menyerupai Sisik Emas Rapi
+            for (let layer = 0; layer < 5; layer++) {
+                const countInLayer = 8 + layer * 2;
+                const radiusY = -0.28 - (layer * 0.17);
+                for (let i = 0; i < countInLayer; i++) {
+                    const angle = ((i / countInLayer) - 0.5) * Math.PI * 1.35;
+                    const neckFeatherGeo = new THREE.ConeGeometry(0.095, 0.46, 4);
+                    const feather = new THREE.Mesh(neckFeatherGeo, deepGoldMat);
+                    feather.rotation.x = Math.PI;
+                    feather.rotation.z = angle * 0.38;
+                    feather.position.set(Math.sin(angle) * (0.42 + layer * 0.08), radiusY, Math.cos(angle) * (0.35 + layer * 0.05));
+                    headGroup.add(feather);
+                }
+            }
+            garudaGroup.add(headGroup);
+
+            // 2. Sayap Megah (17 Helai Sayap Kanan & 17 Helai Sayap Kiri)
+            const createAuthenticWing = (isRight = true) => {
+                const wing = new THREE.Group();
+                const sign = isRight ? 1 : -1;
+                const totalFeathers = 17;
+
+                for (let i = 0; i < totalFeathers; i++) {
+                    const t = i / (totalFeathers - 1);
+                    const length = 2.2 + Math.sin(t * Math.PI * 0.88) * 3.0 + (1 - t) * 0.4;
+                    const featherGeo = new THREE.BoxGeometry(0.2, length, 0.09);
+                    const featherMat = new THREE.MeshStandardMaterial({
+                        color: (i % 2 === 0) ? 0xfcd34d : 0xebb121,
+                        metalness: 0.88,
+                        roughness: 0.22
+                    });
+                    const feather = new THREE.Mesh(featherGeo, featherMat);
+
+                    const angleZ = sign * (0.24 + Math.pow(t, 1.35) * 1.35);
+                    feather.rotation.z = -angleZ;
+                    feather.rotation.y = sign * (t * 0.16);
+                    
+                    const posX = sign * (1.15 + Math.pow(t, 0.82) * 3.5);
+                    const posY = 0.55 + Math.pow(t, 0.88) * 3.35 - Math.sin(t * Math.PI) * 0.45;
+                    const posZ = -0.15 - (t * 0.12);
+
+                    feather.position.set(posX, posY, posZ);
+                    wing.add(feather);
+                }
+
+                // Bulu penutup sayap kecil (Wing Coverts)
+                for (let j = 0; j < 14; j++) {
+                    const covertGeo = new THREE.ConeGeometry(0.15, 1.2, 4);
+                    const covert = new THREE.Mesh(covertGeo, deepGoldMat);
+                    covert.rotation.z = -sign * (0.38 + j * 0.08);
+                    covert.position.set(sign * (1.1 + j * 0.19), 0.5 + Math.cos(j * 0.2) * 0.85, 0.06);
+                    wing.add(covert);
+                }
+
+                return wing;
+            };
+
+            garudaGroup.add(createAuthenticWing(true));
+            garudaGroup.add(createAuthenticWing(false));
+
+            // 3. Ekor (8 Helai Bulu Ekor Kipas Utama & 19 Bulu Pangkal Ekor)
+            const tailGroup = new THREE.Group();
+            tailGroup.position.set(0, -2.4, -0.2);
+
+            // 19 Bulu Pangkal Ekor
+            for (let p = 0; p < 19; p++) {
+                const pAngle = ((p / 18) - 0.5) * 1.6;
+                const pFeather = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.95, 4), deepGoldMat);
+                pFeather.rotation.z = pAngle;
+                pFeather.position.set(pAngle * 1.25, 0.42, 0.08);
+                tailGroup.add(pFeather);
+            }
+
+            // 8 Helai Bulu Ekor Utama Kipas
+            for (let i = 0; i < 8; i++) {
+                const tTail = (i - 3.5) / 3.5;
+                const tailFeatherGeo = new THREE.ConeGeometry(0.26, 3.1, 4);
+                const tailFeather = new THREE.Mesh(tailFeatherGeo, goldMetallicMat);
+                tailFeather.rotation.z = tTail * 0.3;
+                tailFeather.position.set(tTail * 1.3, -1.25 - Math.abs(tTail) * 0.25, -0.05);
+                tailGroup.add(tailFeather);
+            }
+            garudaGroup.add(tailGroup);
+
+            // 4. Kaki & Cakar Garuda Mencengkeram Erat Pita
+            const legMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.25, metalness: 0.75 });
+            const createClaw = (isRight = true) => {
+                const legGroup = new THREE.Group();
+                const sign = isRight ? 1 : -1;
+                legGroup.position.set(sign * 1.35, -2.5, 0.45);
+
+                const thigh = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.18, 0.85, 10), deepGoldMat);
+                thigh.rotation.z = -sign * 0.26;
+                legGroup.add(thigh);
+
+                for (let k = 0; k < 3; k++) {
+                    const toe = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.58, 6), legMat);
+                    toe.rotation.x = Math.PI * 0.55;
+                    toe.rotation.z = (k - 1) * 0.35 * sign;
+                    toe.position.set((k - 1) * 0.13 * sign, -0.46, 0.16);
+                    legGroup.add(toe);
+                }
+                const backToe = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.5, 6), legMat);
+                backToe.rotation.x = -Math.PI * 0.45;
+                backToe.position.set(0, -0.45, -0.12);
+                legGroup.add(backToe);
+
+                return legGroup;
+            };
+            garudaGroup.add(createClaw(true));
+            garudaGroup.add(createClaw(false));
+
+            // Pita Putih Bersih Lengkung "BHINNEKA TUNGGAL IKA"
+            const ribbonCurve = new THREE.QuadraticBezierCurve3(
+                new THREE.Vector3(-3.1, -2.6, 0.35),
+                new THREE.Vector3(0, -3.15, 1.15),
+                new THREE.Vector3(3.1, -2.6, 0.35)
+            );
+            const ribbonGeo = new THREE.TubeGeometry(ribbonCurve, 48, 0.28, 8, false);
+            const ribbonMat = new THREE.MeshStandardMaterial({
+                map: createHeraldicCanvasTexture('pita'),
+                roughness: 0.2,
+                metalness: 0.05
+            });
+            const ribbon = new THREE.Mesh(ribbonGeo, ribbonMat);
+            garudaGroup.add(ribbon);
+
+            // 5. Perisai Jantung Garuda (Heraldic Heart Shield)
+            shieldGroup = new THREE.Group();
+            shieldGroup.position.set(0, 0.15, 0.55);
+            garudaGroup.add(shieldGroup);
+
+            // Shield Outer Border Frame
+            const shieldShape = new THREE.Shape();
+            shieldShape.moveTo(-1.65, 1.85);
+            shieldShape.lineTo(1.65, 1.85);
+            shieldShape.quadraticCurveTo(1.75, 0.0, 1.35, -1.25);
+            shieldShape.quadraticCurveTo(0.7, -2.3, 0, -2.65);
+            shieldShape.quadraticCurveTo(-0.7, -2.3, -1.35, -1.25);
+            shieldShape.quadraticCurveTo(-1.75, 0.0, -1.65, 1.85);
+
+            const shieldExtrude = new THREE.ExtrudeGeometry(shieldShape, {
+                depth: 0.36,
+                bevelEnabled: true,
+                bevelSegments: 5,
+                bevelSize: 0.14,
+                bevelThickness: 0.14
+            });
+            const goldShieldBorderMat = new THREE.MeshStandardMaterial({
+                color: 0xffd700,
+                metalness: 0.95,
+                roughness: 0.15
+            });
+            const shieldBorderMesh = new THREE.Mesh(shieldExtrude, goldShieldBorderMat);
+            shieldBorderMesh.position.set(0, 0, -0.18);
+            shieldGroup.add(shieldBorderMesh);
+
+            // 4 Kuadran Heraldik Resmi
+            createAuthenticHeraldicQuarters(shieldGroup);
+
+            // Garis Khatulistiwa Hitam Tebal (Horizontal)
+            const eqGeo = new THREE.BoxGeometry(3.38, 0.24, 0.44);
+            const eqMat = new THREE.MeshStandardMaterial({ color: 0x09090b, roughness: 0.7 });
+            const equator = new THREE.Mesh(eqGeo, eqMat);
+            equator.position.set(0, 0.15, 0.08);
+            shieldGroup.add(equator);
+
+            // Garis vertikal pembagi tengah tipis hitam
+            const vDivGeo = new THREE.BoxGeometry(0.09, 3.82, 0.4);
+            const vDiv = new THREE.Mesh(vDivGeo, eqMat);
+            vDiv.position.set(0, 0.1, 0.06);
+            shieldGroup.add(vDiv);
+
+            // 6. Interactive 3D Emblems (5 Simbol Sila Realistis)
+            buildInteractiveEmblems(shieldGroup);
+        }
+
+        /* 4 Kuadran Heraldik Resmi Garuda Pancasila */
+        function createAuthenticHeraldicQuarters(parentGroup) {
+            const qGeo = new THREE.PlaneGeometry(1.48, 1.58);
+
+            // Q1: Kiri Atas (Merah - Banteng)
+            const matQ1 = new THREE.MeshStandardMaterial({ map: createHeraldicCanvasTexture('banteng'), roughness: 0.35 });
+            const meshQ1 = new THREE.Mesh(qGeo, matQ1);
+            meshQ1.position.set(-0.76, 1.0, 0.18);
+            parentGroup.add(meshQ1);
+
+            // Q2: Kanan Atas (Putih - Beringin)
+            const matQ2 = new THREE.MeshStandardMaterial({ map: createHeraldicCanvasTexture('beringin'), roughness: 0.35 });
+            const meshQ2 = new THREE.Mesh(qGeo, matQ2);
+            meshQ2.position.set(0.76, 1.0, 0.18);
+            parentGroup.add(meshQ2);
+
+            // Q3: Kiri Bawah (Putih - Padi & Kapas)
+            const matQ3 = new THREE.MeshStandardMaterial({ map: createHeraldicCanvasTexture('padi_kapas'), roughness: 0.35 });
+            const meshQ3 = new THREE.Mesh(qGeo, matQ3);
+            meshQ3.position.set(-0.76, -0.68, 0.18);
+            parentGroup.add(meshQ3);
+
+            // Q4: Kanan Bawah (Merah - Rantai)
+            const matQ4 = new THREE.MeshStandardMaterial({ map: createHeraldicCanvasTexture('rantai'), roughness: 0.35 });
+            const meshQ4 = new THREE.Mesh(qGeo, matQ4);
+            meshQ4.position.set(0.76, -0.68, 0.18);
+            parentGroup.add(meshQ4);
+        }
+
+        /* 5 Simbol 3D Interaktif */
+        function buildInteractiveEmblems(parentGroup) {
+            interactiveMeshes = [];
+
+            // --- 1. Sila 1: BINTANG EMAS (Pusat Perisai Hitam) ---
+            const starGroup = new THREE.Group();
+            starGroup.position.copy(gameState.emblem3DStatus[1].originPos);
+
+            const miniShieldShape = new THREE.Shape();
+            miniShieldShape.moveTo(-0.68, 0.78);
+            miniShieldShape.lineTo(0.68, 0.78);
+            miniShieldShape.quadraticCurveTo(0.72, 0.0, 0.58, -0.48);
+            miniShieldShape.quadraticCurveTo(0.3, -0.92, 0, -1.08);
+            miniShieldShape.quadraticCurveTo(-0.3, -0.92, -0.58, -0.48);
+            miniShieldShape.quadraticCurveTo(-0.72, 0.0, -0.68, 0.78);
+
+            const miniShieldGeo = new THREE.ExtrudeGeometry(miniShieldShape, { depth: 0.15, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04 });
+            const miniShieldMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.85, metalness: 0.2 });
+            const miniShield = new THREE.Mesh(miniShieldGeo, miniShieldMat);
+            miniShield.position.set(0, 0.12, 0);
+            starGroup.add(miniShield);
+
+            // Bintang Timbul Ber-Facet Piramidal
+            const starMeshGroup = new THREE.Group();
+            const starRadius = 0.54;
+            const starInnerRadius = 0.23;
+            const points = 5;
+
+            const goldFacetMat1 = new THREE.MeshStandardMaterial({ color: 0xffea00, metalness: 0.95, roughness: 0.12 });
+            const goldFacetMat2 = new THREE.MeshStandardMaterial({ color: 0xd97706, metalness: 0.95, roughness: 0.25 });
+
+            for (let i = 0; i < points; i++) {
+                const tipAngle = (i * 2 * Math.PI / points) - Math.PI / 2;
+                const leftValleyAngle = tipAngle - (Math.PI / points);
+                const rightValleyAngle = tipAngle + (Math.PI / points);
+
+                const tipX = Math.cos(tipAngle) * starRadius;
+                const tipY = Math.sin(tipAngle) * starRadius;
+                const lX = Math.cos(leftValleyAngle) * starInnerRadius;
+                const lY = Math.sin(leftValleyAngle) * starInnerRadius;
+                const rX = Math.cos(rightValleyAngle) * starInnerRadius;
+                const rY = Math.sin(rightValleyAngle) * starInnerRadius;
+
+                // Triangle 1
+                const geo1 = new THREE.BufferGeometry();
+                const v1 = new Float32Array([
+                    0, 0, 0.22,
+                    tipX, tipY, 0.02,
+                    lX, lY, 0.02
+                ]);
+                geo1.setAttribute('position', new THREE.BufferAttribute(v1, 3));
+                geo1.computeVertexNormals();
+                starMeshGroup.add(new THREE.Mesh(geo1, goldFacetMat1));
+
+                // Triangle 2
+                const geo2 = new THREE.BufferGeometry();
+                const v2 = new Float32Array([
+                    0, 0, 0.22,
+                    rX, rY, 0.02,
+                    tipX, tipY, 0.02
+                ]);
+                geo2.setAttribute('position', new THREE.BufferAttribute(v2, 3));
+                geo2.computeVertexNormals();
+                starMeshGroup.add(new THREE.Mesh(geo2, goldFacetMat2));
+            }
+            starMeshGroup.position.set(0, 0.12, 0.15);
+            starGroup.add(starMeshGroup);
+
+            starGroup.userData = { silaId: 1, name: "Bintang Emas" };
+            parentGroup.add(starGroup);
+            interactiveMeshes.push(starGroup);
+            gameState.emblem3DStatus[1].mesh = starGroup;
+
+            // --- 2. Sila 2: RANTAI EMAS (Kanan-Bawah) ---
+            const chainGroup = new THREE.Group();
+            chainGroup.position.copy(gameState.emblem3DStatus[2].originPos);
+
+            const chainHitBox = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.4, 0.3), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 }));
+            chainGroup.add(chainHitBox);
+
+            const torusGeo = new THREE.TorusGeometry(0.38, 0.045, 12, 32);
+            const chainGoldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.9, roughness: 0.2 });
+            const chainRing = new THREE.Mesh(torusGeo, chainGoldMat);
+            chainRing.rotation.z = -0.38;
+            chainGroup.add(chainRing);
+
+            chainGroup.userData = { silaId: 2, name: "Rantai Emas" };
+            parentGroup.add(chainGroup);
+            interactiveMeshes.push(chainGroup);
+            gameState.emblem3DStatus[2].mesh = chainGroup;
+
+            // --- 3. Sila 3: POHON BERINGIN (Kanan-Atas) ---
+            const banyanGroup = new THREE.Group();
+            banyanGroup.position.copy(gameState.emblem3DStatus[3].originPos);
+
+            const banyanHitBox = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.4, 0.3), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 }));
+            banyanGroup.add(banyanHitBox);
+
+            const foliageMat = new THREE.MeshStandardMaterial({ color: 0x15803d, roughness: 0.45 });
+            const crown3d = new THREE.Mesh(new THREE.DodecahedronGeometry(0.36), foliageMat);
+            crown3d.position.set(0, 0.15, 0.08);
+            crown3d.scale.set(1.4, 0.9, 0.4);
+            banyanGroup.add(crown3d);
+
+            banyanGroup.userData = { silaId: 3, name: "Pohon Beringin" };
+            parentGroup.add(banyanGroup);
+            interactiveMeshes.push(banyanGroup);
+            gameState.emblem3DStatus[3].mesh = banyanGroup;
+
+            // --- 4. Sila 4: KEPALA BANTENG (Kiri-Atas) ---
+            const bantengGroup = new THREE.Group();
+            bantengGroup.position.copy(gameState.emblem3DStatus[4].originPos);
+
+            const bantengHitBox = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.4, 0.3), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 }));
+            bantengGroup.add(bantengHitBox);
+
+            const hornMat = new THREE.MeshStandardMaterial({ color: 0xffffff, metalness: 0.6, roughness: 0.25 });
+            const hornGeo = new THREE.ConeGeometry(0.075, 0.48, 6);
+            const rHorn = new THREE.Mesh(hornGeo, hornMat);
+            rHorn.rotation.z = -0.72;
+            rHorn.position.set(0.24, 0.22, 0.08);
+            bantengGroup.add(rHorn);
+
+            const lHorn = new THREE.Mesh(hornGeo, hornMat);
+            lHorn.rotation.z = 0.72;
+            lHorn.position.set(-0.24, 0.22, 0.08);
+            bantengGroup.add(lHorn);
+
+            bantengGroup.userData = { silaId: 4, name: "Kepala Banteng" };
+            parentGroup.add(bantengGroup);
+            interactiveMeshes.push(bantengGroup);
+            gameState.emblem3DStatus[4].mesh = bantengGroup;
+
+            // --- 5. Sila 5: PADI DAN KAPAS (Kiri-Bawah) ---
+            const padiKapasGroup = new THREE.Group();
+            padiKapasGroup.position.copy(gameState.emblem3DStatus[5].originPos);
+
+            const padiHitBox = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.4, 0.3), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.0 }));
+            padiKapasGroup.add(padiHitBox);
+
+            const grainMat = new THREE.MeshStandardMaterial({ color: 0xfacc15, metalness: 0.8, roughness: 0.25 });
+            for (let g = 0; g < 4; g++) {
+                const grain = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), grainMat);
+                grain.position.set(-0.22 + g * 0.06, -0.15 + g * 0.12, 0.08);
+                grain.scale.set(0.6, 1.3, 0.6);
+                padiKapasGroup.add(grain);
+            }
+
+            padiKapasGroup.userData = { silaId: 5, name: "Padi dan Kapas" };
+            parentGroup.add(padiKapasGroup);
+            interactiveMeshes.push(padiKapasGroup);
+            gameState.emblem3DStatus[5].mesh = padiKapasGroup;
+        }
+
+        /* 3D Window Resize Adaptation */
+        function onWindowResize() {
+            if (!camera || !renderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        /* Touch & Mouse Controls for Orbiting & Clicking */
+        function setupCanvasInteraction(dom) {
+            let startPos = { x: 0, y: 0 };
+            let hasMovedSignificantly = false;
+
+            const onPointerDown = (e) => {
+                isUserInteracting = true;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                previousMousePosition = { x: clientX, y: clientY };
+                startPos = { x: clientX, y: clientY };
+                hasMovedSignificantly = false;
+            };
+
+            const onPointerMove = (e) => {
+                if (!isUserInteracting) return;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+                const deltaX = clientX - previousMousePosition.x;
+                const deltaY = clientY - previousMousePosition.y;
+
+                if (Math.hypot(clientX - startPos.x, clientY - startPos.y) > 8) {
+                    hasMovedSignificantly = true;
+                }
+
+                targetRotation.y += deltaX * 0.006;
+                targetRotation.x = Math.max(-0.4, Math.min(0.4, targetRotation.x + deltaY * 0.005));
+
+                previousMousePosition = { x: clientX, y: clientY };
+            };
+
+            const onPointerUp = (e) => {
+                isUserInteracting = false;
+                if (!hasMovedSignificantly) {
+                    // It was a tap/click -> Trigger raycast
+                    const clientX = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0].clientX : e.clientX;
+                    const clientY = (e.changedTouches && e.changedTouches.length > 0) ? e.changedTouches[0].clientY : e.clientY;
+                    handleCanvasTap(clientX, clientY);
+                }
+            };
+
+            dom.addEventListener('mousedown', onPointerDown);
+            window.addEventListener('mousemove', onPointerMove);
+            window.addEventListener('mouseup', onPointerUp);
+
+            dom.addEventListener('touchstart', onPointerDown, { passive: true });
+            window.addEventListener('touchmove', onPointerMove, { passive: true });
+            window.addEventListener('touchend', onPointerUp);
+        }
+
+        function handleCanvasTap(clientX, clientY) {
+            if (gameState.currentMode !== 'explore' && gameState.currentMode !== 'puzzle3d') return;
+
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            // Collect all meshes in interactive groups
+            const clickableCandidates = [];
+            interactiveMeshes.forEach(grp => {
+                grp.traverse(child => {
+                    if (child.isMesh) {
+                        child.userData.parentGroup = grp;
+                        clickableCandidates.push(child);
+                    }
+                });
+            });
+
+            const intersects = raycaster.intersectObjects(clickableCandidates, false);
+
+            if (intersects.length > 0) {
+                const targetGroup = intersects[0].object.userData.parentGroup;
+                if (targetGroup && targetGroup.userData && targetGroup.userData.silaId) {
+                    const silaId = targetGroup.userData.silaId;
+                    if (gameState.currentMode === 'explore') {
+                        playSound('click');
+                        showSymbolCard(silaId);
+                    } else if (gameState.currentMode === 'puzzle3d') {
+                        // Toggle lepas atau pasang lambang 3D secara interaktif
+                        toggleEmblem3D(silaId);
+                    }
+                }
+            }
+        }
+
+        /* Interaksi Lepas & Pasang 3D Animasi */
+        function toggleEmblem3D(silaId) {
+            const item = gameState.emblem3DStatus[silaId];
+            if (!item || !item.mesh) return;
+
+            playSound('click');
+            const grp = item.mesh;
+
+            if (item.attached) {
+                // Lepaskan dari perisai ke nampan mengapung
+                item.attached = false;
+                animateVector3(grp.position, item.detachPos, 350);
+                animateVector3(grp.scale, new THREE.Vector3(1.3, 1.3, 1.3), 350);
+                showToast(`Lambang Sila ${silaId} dilepas dari perisai!`);
+            } else {
+                // Pasang kembali ke perisai garuda
+                item.attached = true;
+                animateVector3(grp.position, item.originPos, 350);
+                animateVector3(grp.scale, new THREE.Vector3(1.0, 1.0, 1.0), 350);
+                playSound('correct');
+                showToast(`Lambang Sila ${silaId} terpasang kembali dengan sempurna!`);
+            }
+
+            render3DTrayUI();
+            checkAllAttachedReward();
+        }
+
+        function animateVector3(targetVec, destVec, durationMs) {
+            const start = { x: targetVec.x, y: targetVec.y, z: targetVec.z };
+            const startTime = performance.now();
+
+            function update(time) {
+                const elapsed = time - startTime;
+                let progress = Math.min(elapsed / durationMs, 1);
+                // Ease Out Back without mutating a const variable
+                const p = progress - 1;
+                const ease = 1 + p * p * ((1.7 + 1) * p + 1.7);
+                const t = Math.min(Math.max(ease, 0), 1);
+
+                targetVec.x = start.x + (destVec.x - start.x) * t;
+                targetVec.y = start.y + (destVec.y - start.y) * t;
+                targetVec.z = start.z + (destVec.z - start.z) * t;
+
+                if (elapsed < durationMs) {
+                    requestAnimationFrame(update);
+                } else {
+                    targetVec.copy(destVec);
+                }
+            }
+            requestAnimationFrame(update);
+        }
+
+        function render3DTrayUI() {
+            const container = document.getElementById('tray-items-container');
+            const countInfo = document.getElementById('tray-count-info');
+            container.innerHTML = '';
+
+            let attachedCount = 0;
+            for (let id = 1; id <= 5; id++) {
+                const info = gameState.emblem3DStatus[id];
+                const meta = PANCASILA_DATA.find(d => d.id === id);
+
+                if (info.attached) attachedCount++;
+
+                const btn = document.createElement('button');
+                btn.className = `px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-2 border transition ${
+                    info.attached 
+                        ? 'bg-slate-900/90 border-slate-700 text-slate-300 hover:border-amber-400' 
+                        : 'bg-amber-500 text-slate-950 border-amber-300 font-extrabold shadow-md animate-pulse'
+                }`;
+                btn.innerHTML = `
+                    <i class="fa-solid ${info.attached ? 'fa-thumbtack' : 'fa-arrows-rotate'}"></i>
+                    <span>${meta.name} (${info.attached ? 'Lepas' : 'Pasang'})</span>
+                `;
+                btn.onclick = () => toggleEmblem3D(id);
+                container.appendChild(btn);
+            }
+
+            countInfo.textContent = `${attachedCount}/5 Terpasang di Perisai`;
+        }
+
+        function checkAllAttachedReward() {
+            let allOn = true;
+            for (let id = 1; id <= 5; id++) {
+                if (!gameState.emblem3DStatus[id].attached) allOn = false;
+            }
+            if (allOn && gameState.currentMode === 'puzzle3d') {
+                gameState.score += 15;
+                updateHudScore();
+                playSound('fanfare');
+                showToast("Luar biasa! Seluruh 5 lambang berhasil Anda susun kokoh di perisai Garuda!");
+            }
+        }
+
+        /* Render Animation Loop */
+        let animationFrameId;
+        function animate() {
+            animationFrameId = requestAnimationFrame(animate);
+
+            if (garudaGroup) {
+                // Smooth damping to target rotation
+                garudaGroup.rotation.y += (targetRotation.y - garudaGroup.rotation.y) * 0.08;
+                garudaGroup.rotation.x += (targetRotation.x - garudaGroup.rotation.x) * 0.08;
+
+                // Subtle organic idle floating animation
+                const time = Date.now() * 0.0018;
+                garudaGroup.position.y = Math.sin(time) * 0.07;
+                garudaGroup.position.x = Math.cos(time * 0.8) * 0.04;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        /* ================= GAMEPLAY CONTROLLERS ================= */
+
+        function handleStartGame(e) {
+            e.preventDefault();
+            initAudio();
+
+            const nameInput = document.getElementById('input-name').value.trim();
+            const classInput = document.getElementById('input-class').value.trim();
+
+            if (!nameInput || !classInput) return;
+
+            gameState.playerName = nameInput;
+            gameState.playerClass = classInput;
+
+            document.getElementById('hud-player-name').textContent = gameState.playerName;
+            document.getElementById('hud-player-class').textContent = gameState.playerClass;
+
+            closeModal('modal-identity');
+            playSound('correct');
+            showToast(`Selamat datang, ${gameState.playerName}! Mari jelajahi simbol Garuda.`);
+
+            // Open First Sila by default
+            setTimeout(() => {
+                showSymbolCard(1);
+            }, 600);
+        }
+
+        function showSymbolCard(silaId) {
+            const data = PANCASILA_DATA.find(d => d.id === silaId);
+            if (!data) return;
+
+            activeSymbolId = silaId;
+
+            // Mark as explored and reward points
+            if (!gameState.exploredSymbols.has(silaId)) {
+                gameState.exploredSymbols.add(silaId);
+                gameState.score += 10;
+                updateHudScore();
+                if (gameState.exploredSymbols.size === 5) {
+                    showToast("Luar biasa! Seluruh 5 lambang Garuda telah Anda jelajahi!");
+                    playSound('fanfare');
+                }
+            }
+
+            document.getElementById('card-sila-number').textContent = data.silaNumber;
+            document.getElementById('card-symbol-name').textContent = data.name;
+            document.getElementById('card-sila-text').textContent = `"${data.silaText}"`;
+            document.getElementById('card-symbol-meaning').textContent = data.meaning;
+            document.getElementById('card-symbol-value').textContent = data.value;
+
+            const iconContainer = document.getElementById('card-symbol-icon');
+            const icons = {
+                1: 'fa-star text-amber-400',
+                2: 'fa-link text-red-400',
+                3: 'fa-tree text-emerald-400',
+                4: 'fa-shield text-rose-500',
+                5: 'fa-wheat-awn text-yellow-400'
+            };
+            iconContainer.innerHTML = `<i class="fa-solid ${icons[silaId] || 'fa-star'}"></i>`;
+
+            const card = document.getElementById('symbol-card');
+            card.classList.remove('hidden');
+
+            // Rotate Garuda slightly towards focused emblem
+            if (silaId === 4) targetRotation = { x: -0.15, y: -0.25 };
+            else if (silaId === 3) targetRotation = { x: -0.15, y: 0.25 };
+            else if (silaId === 5) targetRotation = { x: 0.15, y: -0.25 };
+            else if (silaId === 2) targetRotation = { x: 0.15, y: 0.25 };
+            else targetRotation = { x: 0, y: 0 };
+        }
+
+        function closeSymbolCard() {
+            document.getElementById('symbol-card').classList.add('hidden');
+            targetRotation = { x: 0, y: 0 };
+            playSound('click');
+        }
+
+        function inspectNextSymbol() {
+            let nextId = activeSymbolId + 1;
+            if (nextId > 5) nextId = 1;
+            playSound('click');
+            showSymbolCard(nextId);
+        }
+
+        function switchGameMode(mode) {
+            playSound('click');
+            gameState.currentMode = mode;
+
+            // Reset navigation styling
+            const modes = ['explore', 'puzzle3d', 'quiz', 'puzzle'];
+            modes.forEach(m => {
+                const btn = document.getElementById(`nav-btn-${m}`);
+                if (btn) {
+                    if (m === mode) {
+                        btn.className = "px-3 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition bg-amber-500 text-slate-950 shadow-md";
+                    } else {
+                        btn.className = "px-3 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold flex items-center gap-2 transition text-slate-300 hover:text-white hover:bg-white/10";
+                    }
+                }
+            });
+
+            // UI Mode Overlays
+            const quizPanel = document.getElementById('panel-quiz');
+            const puzzlePanel = document.getElementById('panel-puzzle');
+            const exploreHint = document.getElementById('explore-hint');
+            const hintText = document.getElementById('hint-text');
+            const symbolCard = document.getElementById('symbol-card');
+            const dockTray = document.getElementById('dock-tray-3d');
+
+            if (mode === 'explore') {
+                quizPanel.classList.add('hidden');
+                puzzlePanel.classList.add('hidden');
+                dockTray.classList.add('hidden');
+                exploreHint.classList.remove('hidden');
+                hintText.textContent = "Sentuh atau klik 5 lambang pada perisai Garuda untuk memeriksa makna!";
+                targetRotation = { x: 0, y: 0 };
+            } else if (mode === 'puzzle3d') {
+                quizPanel.classList.add('hidden');
+                puzzlePanel.classList.add('hidden');
+                symbolCard.classList.add('hidden');
+                exploreHint.classList.remove('hidden');
+                dockTray.classList.remove('hidden');
+                hintText.textContent = "Klik langsung lambang pada burung Garuda atau nampan untuk MELEPAS & MEMASANG!";
+                render3DTrayUI();
+                targetRotation = { x: 0, y: 0 };
+            } else if (mode === 'quiz') {
+                symbolCard.classList.add('hidden');
+                exploreHint.classList.add('hidden');
+                dockTray.classList.add('hidden');
+                puzzlePanel.classList.add('hidden');
+                quizPanel.classList.remove('hidden');
+                startQuizMode();
+            } else if (mode === 'puzzle') {
+                symbolCard.classList.add('hidden');
+                exploreHint.classList.add('hidden');
+                dockTray.classList.add('hidden');
+                quizPanel.classList.add('hidden');
+                puzzlePanel.classList.remove('hidden');
+                initPuzzleMode();
+            }
+        }
+
+        /* ---------------- QUIZ LOGIC ---------------- */
+        function startQuizMode() {
+            gameState.quizIndex = 0;
+            renderQuizQuestion();
+        }
+
+        function renderQuizQuestion() {
+            const q = QUIZ_QUESTIONS[gameState.quizIndex];
+            document.getElementById('quiz-question-current').textContent = gameState.quizIndex + 1;
+            document.getElementById('quiz-question-total').textContent = QUIZ_QUESTIONS.length;
+            document.getElementById('quiz-prompt-text').textContent = q.prompt;
+
+            const container = document.getElementById('quiz-options-container');
+            container.innerHTML = '';
+
+            const feedback = document.getElementById('quiz-feedback-box');
+            feedback.className = 'hidden';
+            feedback.innerHTML = '';
+
+            const nextBtn = document.getElementById('quiz-next-btn');
+            nextBtn.disabled = true;
+
+            q.options.forEach((opt) => {
+                const optBtn = document.createElement('button');
+                optBtn.className = "w-full text-left p-3.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800/90 border border-white/10 text-xs sm:text-sm font-semibold text-slate-200 transition flex items-center justify-between";
+                optBtn.innerHTML = `<span>${opt}</span><i class="fa-regular fa-circle text-slate-500"></i>`;
+                optBtn.onclick = () => selectQuizAnswer(optBtn, opt, q);
+                container.appendChild(optBtn);
+            });
+        }
+
+        function selectQuizAnswer(selectedBtn, chosenAnswer, question) {
+            const container = document.getElementById('quiz-options-container');
+            const buttons = container.querySelectorAll('button');
+            buttons.forEach(btn => btn.disabled = true);
+
+            const feedback = document.getElementById('quiz-feedback-box');
+            feedback.classList.remove('hidden');
+
+            const isCorrect = (chosenAnswer === question.correctAnswer);
+
+            if (isCorrect) {
+                playSound('correct');
+                selectedBtn.className = "w-full text-left p-3.5 rounded-2xl bg-emerald-950/80 border-2 border-emerald-500 text-xs sm:text-sm font-bold text-white transition flex items-center justify-between";
+                selectedBtn.querySelector('i').className = "fa-solid fa-circle-check text-emerald-400";
+
+                feedback.className = "mt-4 p-3.5 rounded-2xl bg-emerald-950/70 border border-emerald-500/50 text-xs font-semibold text-emerald-200 flex items-start gap-2.5";
+                feedback.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-400 text-sm mt-0.5"></i><div><strong>Tepat Sekali!</strong> ${question.explanation} (+10 Poin)</div>`;
+
+                gameState.score += 10;
+                gameState.quizScore += 10;
+                updateHudScore();
+            } else {
+                playSound('wrong');
+                selectedBtn.className = "w-full text-left p-3.5 rounded-2xl bg-red-950/80 border-2 border-red-500 text-xs sm:text-sm font-bold text-white transition flex items-center justify-between";
+                selectedBtn.querySelector('i').className = "fa-solid fa-circle-xmark text-red-400";
+
+                // Highlight correct one
+                buttons.forEach(btn => {
+                    if (btn.textContent.trim() === question.correctAnswer) {
+                        btn.className = "w-full text-left p-3.5 rounded-2xl bg-emerald-950/60 border border-emerald-500 text-xs sm:text-sm font-bold text-emerald-200 flex items-center justify-between";
+                        btn.querySelector('i').className = "fa-solid fa-circle-check text-emerald-400";
+                    }
+                });
+
+                feedback.className = "mt-4 p-3.5 rounded-2xl bg-red-950/70 border border-red-500/50 text-xs font-semibold text-red-200 flex items-start gap-2.5";
+                feedback.innerHTML = `<i class="fa-solid fa-circle-xmark text-red-400 text-sm mt-0.5"></i><div><strong>Kurang Tepat.</strong> ${question.explanation}</div>`;
+            }
+
+            document.getElementById('quiz-next-btn').disabled = false;
+        }
+
+        function nextQuizQuestion() {
+            playSound('click');
+            gameState.quizIndex++;
+            if (gameState.quizIndex < QUIZ_QUESTIONS.length) {
+                renderQuizQuestion();
+            } else {
+                showToast("Selamat! Seluruh kuis Pendidikan Pancasila telah diselesaikan!");
+                playSound('fanfare');
+                switchGameMode('puzzle');
+            }
+        }
+
+        /* ---------------- PUZZLE (SUSUN PERISAI) LOGIC ---------------- */
+        function initPuzzleMode() {
+            resetPuzzleSlots();
+            renderPuzzlePalette();
+        }
+
+        function resetPuzzleSlots() {
+            gameState.puzzleSlots = { 1: null, 2: null, 3: null, 4: null, 5: null };
+            gameState.puzzleSelectedSymbol = null;
+
+            const slotIds = [1, 2, 3, 4, 5];
+            slotIds.forEach(id => {
+                const el = document.getElementById(`shield-slot-${id}`);
+                const content = el.querySelector('.slot-content');
+                content.innerHTML = "Slot Kosong";
+                content.className = "slot-content text-xs font-semibold text-center text-slate-400 mt-1";
+            });
+
+            document.getElementById('puzzle-status-msg').textContent = "Pilih salah satu simbol di bawah, lalu pasang ke slot yang sesuai.";
+            renderPuzzlePalette();
+        }
+
+        function renderPuzzlePalette() {
+            const container = document.getElementById('puzzle-palette-container');
+            container.innerHTML = '';
+
+            PANCASILA_DATA.forEach(item => {
+                const isPlaced = Object.values(gameState.puzzleSlots).includes(item.id);
+                const isSelected = gameState.puzzleSelectedSymbol === item.id;
+
+                const btn = document.createElement('button');
+                btn.className = `w-full p-2.5 rounded-xl border text-xs font-bold flex items-center justify-between transition ${
+                    isPlaced 
+                        ? 'opacity-40 bg-slate-900 border-slate-800 text-slate-500 cursor-not-allowed'
+                        : isSelected
+                            ? 'bg-amber-500 text-slate-950 border-amber-300 shadow-md scale-[1.02]'
+                            : 'bg-slate-900/80 border-white/10 text-slate-200 hover:bg-slate-800'
+                }`;
+                btn.innerHTML = `
+                    <div class="flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-300 flex items-center justify-center text-xs">
+                            ${item.id}
+                        </span>
+                        <span>${item.name} (${item.silaNumber})</span>
+                    </div>
+                    <i class="fa-solid ${isPlaced ? 'fa-check' : 'fa-hand-pointer text-slate-400'}"></i>
+                `;
+
+                if (!isPlaced) {
+                    btn.onclick = () => selectPuzzleSymbol(item.id);
+                }
+                container.appendChild(btn);
+            });
+        }
+
+        function selectPuzzleSymbol(symbolId) {
+            playSound('click');
+            gameState.puzzleSelectedSymbol = symbolId;
+            const item = PANCASILA_DATA.find(d => d.id === symbolId);
+            document.getElementById('puzzle-status-msg').innerHTML = `<span class="text-amber-400 font-bold">${item.name}</span> dipilih! Silakan klik slot perisai yang tepat.`;
+            renderPuzzlePalette();
+        }
+
+        function slotClicked(slotTargetId) {
+            if (!gameState.puzzleSelectedSymbol) {
+                showToast("Pilih salah satu simbol dari daftar terlebih dahulu!");
+                return;
+            }
+
+            const symbolId = gameState.puzzleSelectedSymbol;
+            const item = PANCASILA_DATA.find(d => d.id === symbolId);
+
+            // Assign to slot
+            gameState.puzzleSlots[slotTargetId] = symbolId;
+            playSound('click');
+
+            const slotEl = document.getElementById(`shield-slot-${slotTargetId}`);
+            const content = slotEl.querySelector('.slot-content');
+            content.innerHTML = `<span class="text-white font-extrabold text-[11px]">${item.name}</span>`;
+
+            gameState.puzzleSelectedSymbol = null;
+            document.getElementById('puzzle-status-msg').textContent = `${item.name} telah ditempatkan!`;
+            renderPuzzlePalette();
+        }
+
+        function checkPuzzleCompletion() {
+            let correctCount = 0;
+            for (let i = 1; i <= 5; i++) {
+                if (gameState.puzzleSlots[i] === i) {
+                    correctCount++;
+                }
+            }
+
+            if (correctCount === 5) {
+                playSound('fanfare');
+                gameState.score += 25;
+                updateHudScore();
+                showToast("Luar biasa! Seluruh perisai Garuda terpasang sempurna!");
+                setTimeout(() => {
+                    showCertificateModal();
+                }, 1000);
+            } else {
+                playSound('wrong');
+                showToast(`Baru ${correctCount} dari 5 lambang yang posisinya tepat. Coba periksa kembali!`);
+            }
+        }
+
+        function updateHudScore() {
+            document.getElementById('hud-score').textContent = gameState.score;
+        }
+
+        /* ---------------- OFFICIAL HIGH-RES CERTIFICATE GENERATOR ---------------- */
+        function showCertificateModal() {
+            playSound('click');
+            const modal = document.getElementById('modal-certificate');
+            modal.classList.remove('hidden');
+
+            const finalScore = Math.min(100, gameState.score);
+            document.getElementById('cert-score-display').textContent = `${finalScore} / 100`;
+
+            renderCertificateOnCanvas(finalScore);
+        }
+
+        function renderCertificateOnCanvas(score) {
+            const canvas = document.getElementById('cert-canvas');
+            const ctx = canvas.getContext('2d');
+
+            // High Quality Resolution 1200 x 840
+            const W = canvas.width;
+            const H = canvas.height;
+
+            // 1. Background Luxury Gradient
+            const bgGrad = ctx.createLinearGradient(0, 0, W, H);
+            bgGrad.addColorStop(0, '#020617');
+            bgGrad.addColorStop(0.5, '#0f172a');
+            bgGrad.addColorStop(1, '#020617');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, W, H);
+
+            // 2. Ornate Gold Double Border
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 14;
+            ctx.strokeRect(28, 28, W - 56, H - 56);
+
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(46, 46, W - 92, H - 92);
+
+            // Corner Accents
+            const corners = [
+                [46, 46], [W - 46, 46], [46, H - 46], [W - 46, H - 46]
+            ];
+            corners.forEach(([cx, cy]) => {
+                ctx.fillStyle = '#f59e0b';
+                ctx.beginPath();
+                ctx.arc(cx, cy, 14, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 3. Header Texts
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#fcd34d';
+            ctx.font = '800 24px "Cinzel", serif';
+            ctx.fillText('REPUBLIK INDONESIA - PENDIDIKAN PANCASILA', W / 2, 115);
+
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '900 48px "Cinzel", serif';
+            ctx.fillText('SERTIFIKAT KELAYAKAN', W / 2, 180);
+
+            ctx.fillStyle = '#cbd5e1';
+            ctx.font = '500 20px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText('Diberikan dengan bangga kepada pelajar berprestasi:', W / 2, 230);
+
+            // 4. Student Name
+            ctx.fillStyle = '#fbbf24';
+            ctx.font = '800 46px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText(gameState.playerName.toUpperCase(), W / 2, 305);
+
+            // Underline
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(W / 2 - 280, 325);
+            ctx.lineTo(W / 2 + 280, 325);
+            ctx.stroke();
+
+            // 5. Student Class & Details
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '600 22px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText(`Jenjang / Kelas: ${gameState.playerClass}`, W / 2, 370);
+
+            ctx.fillStyle = '#e2e8f0';
+            ctx.font = '500 21px "Plus Jakarta Sans", sans-serif';
+            const certText = 'Telah menyelesaikan seluruh materi dan tantangan interaktif 3D';
+            const certText2 = 'Lambang Negara Republik Indonesia "Garuda Pancasila" dengan hasil:';
+            ctx.fillText(certText, W / 2, 430);
+            ctx.fillText(certText2, W / 2, 465);
+
+            // 6. Score Badge
+            const badgeY = 565;
+            ctx.fillStyle = 'rgba(245, 158, 11, 0.15)';
+            ctx.strokeStyle = '#f59e0b';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(W / 2 - 130, badgeY - 50, 260, 95, 20);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#fcd34d';
+            ctx.font = '800 42px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText(`${score} / 100`, W / 2, badgeY + 12);
+
+            let predicate = "SANGAT BAIK (A)";
+            if (score < 70) predicate = "CUKUP BAIK (B)";
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = '700 18px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText(`PREDIKAT: ${predicate}`, W / 2, badgeY + 80);
+
+            // 7. Footer Signatures & Date
+            const today = new Date().toLocaleDateString('id-ID', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric'
+            });
+
+            ctx.textAlign = 'left';
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '500 17px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText(`Diterbitkan pada: ${today}`, 90, 740);
+            ctx.fillText('Media Interaktif 3D Garuda Pancasila', 90, 765);
+
+            ctx.textAlign = 'right';
+            ctx.fillStyle = '#fcd34d';
+            ctx.font = '800 20px "Cinzel", serif';
+            ctx.fillText('BHINNEKA TUNGGAL IKA', W - 90, 740);
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '500 16px "Plus Jakarta Sans", sans-serif';
+            ctx.fillText('Menjaga Persatuan & Keutuhan NKRI', W - 90, 765);
+        }
+
+        function downloadCertificateImage() {
+            playSound('click');
+            const canvas = document.getElementById('cert-canvas');
+            const imageURL = canvas.toDataURL("image/png");
+            
+            const a = document.createElement('a');
+            a.href = imageURL;
+            a.download = `Sertifikat_Pancasila_${gameState.playerName.replace(/\s+/g, '_')}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+
+            showToast("Sertifikat berhasil diunduh!");
+        }
+
+        /* ---------------- UTILITY HELPERS ---------------- */
+        function openModal(id) {
+            playSound('click');
+            document.getElementById(id).classList.remove('hidden');
+        }
+
+        function closeModal(id) {
+            playSound('click');
+            document.getElementById(id).classList.add('hidden');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast-msg');
+            toast.textContent = msg;
+            toast.classList.remove('opacity-0', '-translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', '-translate-y-4');
+            }, 3200);
+        }
+
+        /* ================= WINDOW ONLOAD ENTRY POINT ================= */
+        window.onload = function() {
+            initThreeEngine();
+            animate();
+        };
+    </script>
+</body>
+</html>
